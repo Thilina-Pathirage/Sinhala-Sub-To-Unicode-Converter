@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react"; // Import useEffect
 import {
   Button,
   Typography,
@@ -17,10 +17,35 @@ import DownloadIcon from "@mui/icons-material/Download";
 import { Brightness4, Brightness7 } from "@mui/icons-material";
 import YouTubeIcon from "@mui/icons-material/YouTube";
 import MusicNoteIcon from "@mui/icons-material/MusicNote";
+
 function App() {
   const [convertedText, setConvertedText] = useState("");
   const [fileName, setFileName] = useState("");
   const [darkMode, setDarkMode] = useState(true); // State for theme
+
+  // Google Analytics tracking ID
+  const GA_TRACKING_ID = "G-P958NX2ZXX";
+
+  // Load Google Analytics script
+  useEffect(() => {
+    // Load Google Analytics script
+    const script = document.createElement("script");
+    script.src = `https://www.googletagmanager.com/gtag/js?id=${GA_TRACKING_ID}`;
+    script.async = true;
+    document.head.appendChild(script);
+
+    // Initialize Google Analytics
+    window.dataLayer = window.dataLayer || [];
+    function gtag() {
+      dataLayer.push(arguments);
+    }
+    gtag("js", new Date());
+    gtag("config", GA_TRACKING_ID);
+
+    return () => {
+      document.head.removeChild(script); // Cleanup on unmount
+    };
+  }, [GA_TRACKING_ID]); // Dependency array with GA_TRACKING_ID
 
   // Create themes for dark and light modes
   const darkTheme = createTheme({
@@ -722,6 +747,7 @@ function App() {
   );
 }
 
+// Footer component remains unchanged
 const Footer = () => (
   <Paper
     style={{
@@ -741,7 +767,7 @@ const Footer = () => (
       <IconButton
         color="inherit"
         onClick={() =>
-          window.open("https://www.youtube.com/yourchannel", "_blank")
+          window.open("https://youtube.com/@thilina.x?si=4ZJiSeXQgg4l1RRP", "_blank")
         }
       >
         <YouTubeIcon />
@@ -749,7 +775,7 @@ const Footer = () => (
       <IconButton
         color="inherit"
         onClick={() =>
-          window.open("https://www.tiktok.com/@yourusername", "_blank")
+          window.open("https://www.tiktok.com/@thilina.p?_t=8qo8oPo20Ej&_r=1", "_blank")
         }
       >
         <MusicNoteIcon />
