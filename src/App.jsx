@@ -5,23 +5,79 @@ import {
   Container,
   Paper,
   Grid,
-  Input,
+  Box,
   CssBaseline,
+  IconButton,
+  AppBar,
+  Toolbar,
 } from "@mui/material";
 import { createTheme, ThemeProvider } from "@mui/material/styles";
-
+import CloudUploadIcon from "@mui/icons-material/CloudUpload";
+import DownloadIcon from "@mui/icons-material/Download";
+import { Brightness4, Brightness7 } from "@mui/icons-material";
+import YouTubeIcon from "@mui/icons-material/YouTube";
+import MusicNoteIcon from "@mui/icons-material/MusicNote";
 function App() {
   const [convertedText, setConvertedText] = useState("");
   const [fileName, setFileName] = useState("");
+  const [darkMode, setDarkMode] = useState(true); // State for theme
 
-  // Create a dark theme using Material UI's theme system
+  // Create themes for dark and light modes
   const darkTheme = createTheme({
     palette: {
       mode: "dark",
+      primary: {
+        main: "#90caf9",
+      },
+      background: {
+        default: "#121212",
+        paper: "#1e1e1e",
+      },
+      text: {
+        primary: "#ffffff",
+      },
+    },
+    typography: {
+      fontFamily: "Roboto, sans-serif",
+      h4: {
+        fontWeight: 600,
+      },
+      body1: {
+        fontSize: "1.1rem",
+      },
     },
   });
 
-  // Custom Sinhala to Unicode conversion logic for Sinhala-only text
+  const lightTheme = createTheme({
+    palette: {
+      mode: "light",
+      primary: {
+        main: "#1976d2",
+      },
+      background: {
+        default: "#f5f5f5",
+        paper: "#ffffff",
+      },
+      text: {
+        primary: "#000000",
+      },
+    },
+    typography: {
+      fontFamily: "Roboto, sans-serif",
+      h4: {
+        fontWeight: 600,
+      },
+      body1: {
+        fontSize: "1.1rem",
+      },
+    },
+  });
+
+  // Function to toggle theme
+  const handleThemeToggle = () => {
+    setDarkMode((prevMode) => !prevMode);
+  };
+
   const sinhalaToUnicode = (inputText) => {
     let sftext = inputText;
 
@@ -540,44 +596,32 @@ function App() {
     sftext = sftext.replace(/\ￊ/g, "›");
     sftext = sftext.replace(/\ﾶ/g, "∙");
     sftext = sftext.replace(/ￕ/g, "]");
+
     return sftext;
   };
 
-  // Helper function to convert Sinhala characters only, leaving English intact
   const convertSinhalaInLine = (line) => {
-    // Regex to match Sinhala characters (Sinhala Unicode range)
     const sinhalaRegex = /[\u0D80-\u0DFF]+/g;
-
-    // Replace Sinhala portions of the line, leaving non-Sinhala (e.g. English) intact
     return line.replace(sinhalaRegex, (match) => sinhalaToUnicode(match));
   };
 
-  // Handle the SRT content, converting only the Sinhala text portions of lines
   const handleSRTConversion = (content) => {
-    // Split the content by lines
     const lines = content.split("\n");
-
-    // Go through each line and convert only Sinhala text portions
     const convertedLines = lines.map((line) => {
-      // Use regex to detect timecodes (e.g., '00:00:00,210 --> 00:00:01,050')
       const timecodeRegex =
         /^\d{2}:\d{2}:\d{2},\d{3} --> \d{2}:\d{2}:\d{2},\d{3}$/;
-      const indexNumberRegex = /^\d+$/; // Matches lines that are just numbers (index lines)
+      const indexNumberRegex = /^\d+$/;
 
-      // If the line is a timecode or index, do not convert it
       if (timecodeRegex.test(line) || indexNumberRegex.test(line)) {
-        return line; // Return the line as it is
+        return line;
       }
 
-      // Convert only the Sinhala text in the line, leaving English words intact
       return convertSinhalaInLine(line);
     });
 
-    // Join the lines back together to form the final converted content
     return convertedLines.join("\n");
   };
 
-  // Handle file input
   const handleFileUpload = (event) => {
     const file = event.target.files[0];
     if (file) {
@@ -585,61 +629,133 @@ function App() {
       const reader = new FileReader();
       reader.onload = (e) => {
         const content = e.target.result;
-        const convertedContent = handleSRTConversion(content); // Only convert Sinhala text
+        const convertedContent = handleSRTConversion(content);
         setConvertedText(convertedContent);
       };
       reader.readAsText(file, "utf-8");
     }
   };
 
-  // Trigger download of the converted .srt file
   const handleDownload = () => {
     const element = document.createElement("a");
     const fileBlob = new Blob([convertedText], { type: "text/plain" });
     element.href = URL.createObjectURL(fileBlob);
     element.download = `converted_${fileName}`;
-    document.body.appendChild(element); // Required for this to work in FireFox
+    document.body.appendChild(element);
     element.click();
   };
 
   return (
-    <ThemeProvider theme={darkTheme}>
-      {/* CssBaseline helps apply the theme across all components */}
+    <ThemeProvider theme={darkMode ? darkTheme : lightTheme}>
       <CssBaseline />
-      <Container maxWidth="sm" style={{ marginTop: "50px" }}>
-        <Paper elevation={3} style={{ padding: "20px" }}>
-          <Typography variant="h4" align="center" gutterBottom>
-            Sinhala Subtitle to Unicode Converter
+      <AppBar position="static">
+        <Toolbar>
+          <Typography variant="h6" style={{ flexGrow: 1 }}>
+            Sinhala Subtitle Converter
           </Typography>
-          <Grid container direction="column" spacing={3}>
+          <IconButton onClick={handleThemeToggle} color="inherit">
+            {darkMode ? <Brightness7 /> : <Brightness4 />}
+          </IconButton>
+        </Toolbar>
+      </AppBar>
+      <Container
+        maxWidth="sm"
+        style={{ marginTop: "20px", marginBottom: "80px" }}
+      >
+        <Paper elevation={1} style={{ padding: "40px", borderRadius: "12px" }}>
+          <Box marginBottom={2}>
+            <Typography variant="h6" align="center">
+              Convert Sinhala Subtitle Files to Unicode
+            </Typography>
+            <Typography
+              variant="body2"
+              align="center"
+              style={{ marginTop: "10px" }}
+            >
+              This app allows you to upload a .srt subtitle file, convert the
+              Sinhala text into Unicode format, and download the converted .srt
+              file.
+            </Typography>
+          </Box>
+          <Grid container direction="column" spacing={4}>
             <Grid item>
-              <Typography variant="body1">
+              <Typography variant="body1" align="center">
                 Upload a .srt subtitle file:
               </Typography>
-              <Input
-                type="file"
-                inputProps={{ accept: ".srt" }}
-                onChange={handleFileUpload}
-                fullWidth
-              />
+              <Box
+                display="flex"
+                justifyContent="center"
+                alignItems="center"
+                marginTop={2}
+              >
+                <IconButton color="primary" component="label">
+                  <CloudUploadIcon fontSize="large" />
+                  <input
+                    type="file"
+                    hidden
+                    accept=".srt"
+                    onChange={handleFileUpload}
+                  />
+                </IconButton>
+              </Box>
             </Grid>
             {convertedText && (
               <Grid item>
                 <Button
                   variant="contained"
                   color="primary"
+                  startIcon={<DownloadIcon />}
                   onClick={handleDownload}
                   fullWidth
+                  size="large"
+                  style={{ textTransform: "none", borderRadius: "50px" }}
                 >
-                  Download Converted SRT
+                  Download
                 </Button>
               </Grid>
             )}
           </Grid>
         </Paper>
       </Container>
+      <Footer />
     </ThemeProvider>
   );
 }
+
+const Footer = () => (
+  <Paper
+    style={{
+      padding: "10px 0",
+      position: "fixed",
+      bottom: 0,
+      left: 0,
+      right: 0,
+      textAlign: "center",
+    }}
+    elevation={3}
+  >
+    <Typography variant="body2">
+      Created by <strong>Thilina Pathirage</strong>
+    </Typography>
+    <Box mt={1}>
+      <IconButton
+        color="inherit"
+        onClick={() =>
+          window.open("https://www.youtube.com/yourchannel", "_blank")
+        }
+      >
+        <YouTubeIcon />
+      </IconButton>
+      <IconButton
+        color="inherit"
+        onClick={() =>
+          window.open("https://www.tiktok.com/@yourusername", "_blank")
+        }
+      >
+        <MusicNoteIcon />
+      </IconButton>
+    </Box>
+  </Paper>
+);
 
 export default App;
