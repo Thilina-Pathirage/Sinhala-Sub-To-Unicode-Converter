@@ -1,5 +1,5 @@
 // src/pages/VideoToSrt.jsx
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import {
   Button,
   Typography,
@@ -26,10 +26,53 @@ import { handleSRTConversion } from "../utils/subtitleUtils";
 const VideoToSrt = () => {
   const theme = useTheme();
   const [videoFile, setVideoFile] = useState(null);
+  const [videoUrl, setVideoUrl] = useState(null);
+  const [currentTime, setCurrentTime] = useState(0);
   const [loading, setLoading] = useState(false);
   const [srtData, setSrtData] = useState([]);
   const [isEditing, setIsEditing] = useState(false);
   const [error, setError] = useState(null);
+  const subtitleRefs = useRef({});
+
+  useEffect(() => {
+    return () => {
+      if (videoUrl) {
+        URL.revokeObjectURL(videoUrl);
+      }
+    };
+  }, [videoUrl]);
+
+  const timeToSeconds = (timeStr) => {
+    const [hours, minutes, seconds] = timeStr.split(":");
+    const [secs, ms] = seconds.split(",");
+    return (
+      parseInt(hours) * 3600 +
+      parseInt(minutes) * 60 +
+      parseInt(secs) +
+      parseInt(ms) / 1000
+    );
+  };
+
+  const handleTimeUpdate = (e) => {
+    const time = e.target.currentTime;
+    setCurrentTime(time);
+
+    if (isEditing) {
+      const currentSubtitle = srtData.find((subtitle) => {
+        const [start, end] = subtitle.timecode
+          .split(" --> ")
+          .map(timeToSeconds);
+        return time >= start && time <= end;
+      });
+
+      if (currentSubtitle && subtitleRefs.current[currentSubtitle.index]) {
+        subtitleRefs.current[currentSubtitle.index].scrollIntoView({
+          behavior: "smooth",
+          block: "center",
+        });
+      }
+    }
+  };
 
   const parseSrtContent = (content) => {
     const blocks = content.trim().split("\n\n");
@@ -48,6 +91,7 @@ const VideoToSrt = () => {
     if (!file) return;
 
     setVideoFile(file);
+    setVideoUrl(URL.createObjectURL(file));
     setLoading(true);
     setError(null);
 
@@ -57,6 +101,8 @@ const VideoToSrt = () => {
     try {
       const response = await fetch(
         `https://flask-hello-world-ten-psi-76.vercel.app/upload`,
+        // `http://127.0.0.1:5000/upload`,
+
         {
           method: "POST",
           body: formData,
@@ -127,7 +173,7 @@ const VideoToSrt = () => {
 
   return (
     <Container
-      maxWidth="sm"
+      maxWidth="lg"
       style={{ marginTop: "20px", marginBottom: "80px" }}
     >
       <Paper
@@ -142,17 +188,21 @@ const VideoToSrt = () => {
           Video to SRT Converter
         </Typography>
 
-        <Typography
-          variant="body2"
-          align="center"
-          color="text.secondary"
-          sx={{ mb: 4, px: 2 }}
-        >
-          Upload your video and get automatic subtitles with our advanced speech
-          recognition. You can edit the generated subtitles before downloading
-          the SRT file. Perfect for creating accurate subtitles for your videos
-          in Sinhala language.
-        </Typography>
+        {srtData.length ? (
+          <></>
+        ) : (
+          <Typography
+            variant="body2"
+            align="center"
+            color="text.secondary"
+            sx={{ mb: 4, px: 2 }}
+          >
+            Upload your video and get automatic subtitles with our advanced
+            speech recognition. You can edit the generated subtitles before
+            downloading the SRT file. Perfect for creating accurate subtitles
+            for your videos in Sinhala language.
+          </Typography>
+        )}
 
         <Box marginY={4}>
           <input
@@ -175,7 +225,6 @@ const VideoToSrt = () => {
                   borderRadius: "50px",
                   px: 4,
                   py: 1.5,
-
                   textTransform: "none",
                 }}
               >
@@ -207,6 +256,34 @@ const VideoToSrt = () => {
           )}
         </Box>
 
+        {videoUrl && (
+          <Box
+            sx={{
+              top: 0,
+              zIndex: 1,
+              bgcolor: theme.palette.background.paper,
+              pt: 2,
+              pb: 2,
+              height: "35vh",
+              display: "flex",
+              flexDirection: "column",
+            }}
+          >
+            <video
+              controls
+              onTimeUpdate={handleTimeUpdate}
+              style={{
+                borderRadius: "8px",
+                width: "100%",
+                height: "100%",
+                objectFit: "contain",
+                backgroundColor: "#000",
+              }}
+              src={videoUrl}
+            />
+          </Box>
+        )}
+
         {srtData.length > 0 && (
           <>
             <Box
@@ -228,65 +305,105 @@ const VideoToSrt = () => {
               </IconButton>
             </Box>
 
-            <Grid container spacing={2}>
-              {srtData.map((subtitle, index) => (
-                <Grid item xs={12} key={subtitle.index}>
-                  <Card variant="outlined">
-                    <CardContent>
-                      <Box mb={1}>
-                        <Typography
-                          variant="caption"
-                          color="text.secondary"
-                          display="block"
-                        >
-                          #{subtitle.index} • {subtitle.timecode}
-                        </Typography>
-                      </Box>
-                      {isEditing ? (
-                        <TextField
-                          fullWidth
-                          multiline
-                          minRows={2}
-                          value={subtitle.text}
-                          onChange={(e) =>
-                            handleTextUpdate(index, e.target.value)
-                          }
-                          sx={{
-                            backgroundColor: theme.palette.background.paper,
-                          }}
-                        />
-                      ) : (
-                        <Typography>{subtitle.text}</Typography>
-                      )}
-                    </CardContent>
-                  </Card>
-                </Grid>
-              ))}
-            </Grid>
+            <Box
+              sx={{
+                maxHeight: "400px",
+                overflowY: "auto",
+                overflowX: "hidden",
+                mt: 2,
+                "&::-webkit-scrollbar": {
+                  width: "8px",
+                },
+                "&::-webkit-scrollbar-track": {
+                  background: theme.palette.background.paper,
+                },
+                "&::-webkit-scrollbar-thumb": {
+                  background: theme.palette.primary.main,
+                  borderRadius: "4px",
+                },
+                padding: "10px",
+              }}
+            >
+              <Grid container spacing={2}>
+                {srtData.map((subtitle, index) => {
+                  const [startTime, endTime] = subtitle.timecode
+                    .split(" --> ")
+                    .map(timeToSeconds);
+                  const isCurrentSubtitle =
+                    currentTime >= startTime && currentTime <= endTime;
+
+                  return (
+                    <Grid item xs={12} key={subtitle.index}>
+                      <Card
+                        variant="outlined"
+                        ref={(el) =>
+                          (subtitleRefs.current[subtitle.index] = el)
+                        }
+                        sx={{
+                          borderColor: isCurrentSubtitle
+                            ? "primary.main"
+                            : "inherit",
+                          transition: "all 0.3s ease",
+                          transform: isCurrentSubtitle
+                            ? "scale(1.01)"
+                            : "scale(1)",
+                          boxShadow: isCurrentSubtitle ? 2 : 0,
+                        }}
+                      >
+                        <CardContent>
+                          <Box mb={1}>
+                            <Typography
+                              variant="caption"
+                              color="text.secondary"
+                              display="block"
+                            >
+                              #{subtitle.index} • {subtitle.timecode}
+                            </Typography>
+                          </Box>
+                          {isEditing ? (
+                            <TextField
+                              fullWidth
+                              multiline
+                              minRows={2}
+                              value={subtitle.text}
+                              onChange={(e) =>
+                                handleTextUpdate(index, e.target.value)
+                              }
+                              sx={{
+                                backgroundColor: theme.palette.background.paper,
+                              }}
+                            />
+                          ) : (
+                            <Typography>{subtitle.text}</Typography>
+                          )}
+                        </CardContent>
+                      </Card>
+                    </Grid>
+                  );
+                })}
+              </Grid>
+            </Box>
 
             <Box mt={4}>
-              <Typography
-                align="center"
-                color="text.secondary"
-                sx={{ mb: 2, px: 2 }}
+              <Stack
+                direction={{ xs: "column", sm: "row" }}
+                spacing={2}
+                alignItems="center"
+                justifyContent="center"
               >
-                All set with your edits? Click below to download your subtitle
-                file in SRT format, compatible with most video players and
-                editing software.
-              </Typography>
-
-              <Stack direction="row" spacing={2} justifyContent="center">
                 <Button
                   variant="contained"
                   color="primary"
                   startIcon={<DownloadIcon />}
                   onClick={generateSrtFile}
                   disabled={isEditing}
+                  fullWidth
                   sx={{
                     borderRadius: "50px",
                     px: 4,
                     py: 1.5,
                     textTransform: "none",
+                    maxWidth: { xs: "100%", sm: "220px" },
                   }}
                 >
                   Download SRT
@@ -294,24 +411,26 @@ const VideoToSrt = () => {
                 <Button
                   variant="contained"
                   color="secondary"
-                  startIcon={<TranslateIcon />}
+                  startIcon={<DownloadIcon />}
                   onClick={generateConvertedSrtFile}
                   disabled={isEditing}
+                  fullWidth
                   sx={{
                     borderRadius: "50px",
                     px: 4,
                     py: 1.5,
                     textTransform: "none",
+                    maxWidth: { xs: "100%", sm: "220px" },
                   }}
                 >
-                  Download Converted SRT
+                  Converted SRT
                 </Button>
               </Stack>
             </Box>
           </>
         )}
       </Paper>
-      <Footer />
+      {/* <Footer /> */}
     </Container>
   );
 };
