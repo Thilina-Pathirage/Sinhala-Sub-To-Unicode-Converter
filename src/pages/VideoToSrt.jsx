@@ -19,13 +19,19 @@ import DownloadIcon from "@mui/icons-material/Download";
 import EditIcon from "@mui/icons-material/Edit";
 import SaveIcon from "@mui/icons-material/Save";
 import TranslateIcon from "@mui/icons-material/Translate";
+import DeleteIcon from "@mui/icons-material/Delete";
 import { useTheme } from "@mui/material/styles";
-import Footer from "../Components/Footer";
 import { handleSRTConversion } from "../utils/subtitleUtils";
+import {
+  saveVideo,
+  getVideo,
+  saveSrtData,
+  getSrtData,
+  clearData,
+} from "../utils/db";
 
 const VideoToSrt = () => {
   const theme = useTheme();
-  const [videoFile, setVideoFile] = useState(null);
   const [videoUrl, setVideoUrl] = useState(null);
   const [currentTime, setCurrentTime] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -34,13 +40,35 @@ const VideoToSrt = () => {
   const [error, setError] = useState(null);
   const subtitleRefs = useRef({});
 
+  // Load saved data on component mount
   useEffect(() => {
+    const loadSavedData = async () => {
+      try {
+        const savedVideo = await getVideo();
+        const savedSrt = await getSrtData();
+
+        if (savedVideo) {
+          const videoUrl = URL.createObjectURL(savedVideo.blob);
+          setVideoUrl(videoUrl);
+        }
+
+        if (savedSrt) {
+          setSrtData(savedSrt.data);
+        }
+      } catch (error) {
+        console.error("Error loading saved data:", error);
+      }
+    };
+
+    loadSavedData();
+
+    // Cleanup video URL on unmount
     return () => {
       if (videoUrl) {
         URL.revokeObjectURL(videoUrl);
       }
     };
-  }, [videoUrl]);
+  }, []);
 
   const timeToSeconds = (timeStr) => {
     const [hours, minutes, seconds] = timeStr.split(":");
@@ -90,19 +118,20 @@ const VideoToSrt = () => {
     const file = event.target.files[0];
     if (!file) return;
 
-    setVideoFile(file);
-    setVideoUrl(URL.createObjectURL(file));
     setLoading(true);
     setError(null);
 
-    const formData = new FormData();
-    formData.append("video", file);
-
     try {
+      // Save video to IndexedDB
+      await saveVideo(file);
+      setVideoUrl(URL.createObjectURL(file));
+
+      const formData = new FormData();
+      formData.append("video", file);
+
       const response = await fetch(
         `https://flask-hello-world-ten-psi-76.vercel.app/upload`,
         // `http://127.0.0.1:5000/upload`,
-
         {
           method: "POST",
           body: formData,
@@ -116,6 +145,9 @@ const VideoToSrt = () => {
       const data = await response.json();
       const parsedSrt = parseSrtContent(data.srtContent);
       setSrtData(parsedSrt);
+
+      // Save SRT data to IndexedDB
+      await saveSrtData(parsedSrt);
     } catch (error) {
       console.error("Upload failed:", error);
       setError(error.message);
@@ -132,10 +164,31 @@ const VideoToSrt = () => {
     setIsEditing(false);
   };
 
-  const handleTextUpdate = (index, value) => {
+  const handleTextUpdate = async (index, value) => {
     const newData = [...srtData];
     newData[index].text = value;
     setSrtData(newData);
+
+    // Save updated SRT data to IndexedDB
+    try {
+      await saveSrtData(newData);
+    } catch (error) {
+      console.error("Error saving SRT data:", error);
+    }
+  };
+
+  const handleClearData = async () => {
+    try {
+      await clearData();
+      if (videoUrl) {
+        URL.revokeObjectURL(videoUrl);
+      }
+      setVideoUrl(null);
+      setSrtData([]);
+      setIsEditing(false);
+    } catch (error) {
+      console.error("Error clearing data:", error);
+    }
   };
 
   const generateSrtFile = () => {
@@ -188,9 +241,7 @@ const VideoToSrt = () => {
           Video to SRT Converter
         </Typography>
 
-        {srtData.length ? (
-          <></>
-        ) : (
+        {srtData.length ? null : (
           <Typography
             variant="body2"
             align="center"
@@ -293,16 +344,28 @@ const VideoToSrt = () => {
               alignItems="center"
             >
               <Typography variant="h6">Subtitle Editor</Typography>
-              <IconButton
-                color={isEditing ? "success" : "primary"}
-                onClick={isEditing ? handleSaveAll : handleEditAll}
-                sx={{
-                  border: 1,
-                  borderColor: isEditing ? "success.main" : "primary.main",
-                }}
-              >
-                {isEditing ? <SaveIcon /> : <EditIcon />}
-              </IconButton>
+              <Box display="flex" gap={1}>
+                <IconButton
+                  color="error"
+                  onClick={handleClearData}
+                  sx={{
+                    border: 1,
+                    borderColor: "error.main",
+                  }}
+                >
+                  <DeleteIcon />
+                </IconButton>
+                <IconButton
+                  color={isEditing ? "success" : "primary"}
+                  onClick={isEditing ? handleSaveAll : handleEditAll}
+                  sx={{
+                    border: 1,
+                    borderColor: isEditing ? "success.main" : "primary.main",
+                  }}
+                >
+                  {isEditing ? <SaveIcon /> : <EditIcon />}
+                </IconButton>
+              </Box>
             </Box>
 
             <Box
@@ -411,7 +474,7 @@ const VideoToSrt = () => {
                 <Button
                   variant="contained"
                   color="secondary"
-                  startIcon={<DownloadIcon />}
+                  startIcon={<TranslateIcon />}
                   onClick={generateConvertedSrtFile}
                   disabled={isEditing}
                   fullWidth
@@ -423,14 +486,13 @@ const VideoToSrt = () => {
                     maxWidth: { xs: "100%", sm: "220px" },
                   }}
                 >
-                  Converted SRT
+                  Download Converted SRT
                 </Button>
               </Stack>
             </Box>
           </>
         )}
       </Paper>
-      {/* <Footer /> */}
     </Container>
   );
 };
