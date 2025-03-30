@@ -130,7 +130,7 @@ const VideoToSrt = () => {
       formData.append("video", file);
 
       const response = await fetch(
-        `https://flask-hello-world-ten-psi-76.vercel.app/upload`,
+        `https://srtapi.wizqo.club/upload`,
         // `http://127.0.0.1:5000/upload`,
         {
           method: "POST",
