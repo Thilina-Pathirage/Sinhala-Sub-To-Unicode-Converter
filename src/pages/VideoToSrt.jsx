@@ -28,6 +28,8 @@ import {
   saveSrtData,
   getSrtData,
   clearData,
+  checkDBHealth,
+  fallbackStorage,
 } from "../utils/db";
 
 const VideoToSrt = () => {
@@ -38,12 +40,31 @@ const VideoToSrt = () => {
   const [srtData, setSrtData] = useState([]);
   const [isEditing, setIsEditing] = useState(false);
   const [error, setError] = useState(null);
+  const [dbHealthy, setDbHealthy] = useState(true);
+  const [useFallback, setUseFallback] = useState(false);
   const subtitleRefs = useRef({});
 
   // Load saved data on component mount
   useEffect(() => {
     const loadSavedData = async () => {
       try {
+        // Check database health first
+        const healthCheck = await checkDBHealth();
+        setDbHealthy(healthCheck.healthy);
+        
+        if (!healthCheck.healthy) {
+          console.warn("IndexedDB not available, using fallback storage:", healthCheck.message);
+          setUseFallback(true);
+          
+          // Try to load SRT data from fallback storage
+          const savedSrt = await fallbackStorage.getSrtData();
+          if (savedSrt) {
+            setSrtData(savedSrt.data);
+          }
+          return;
+        }
+
+        // Use normal IndexedDB
         const savedVideo = await getVideo();
         const savedSrt = await getSrtData();
 
@@ -57,6 +78,18 @@ const VideoToSrt = () => {
         }
       } catch (error) {
         console.error("Error loading saved data:", error);
+        setError(`Failed to load saved data: ${error.message}`);
+        
+        // Try fallback storage
+        setUseFallback(true);
+        try {
+          const savedSrt = await fallbackStorage.getSrtData();
+          if (savedSrt) {
+            setSrtData(savedSrt.data);
+          }
+        } catch (fallbackError) {
+          console.error("Fallback storage also failed:", fallbackError);
+        }
       }
     };
 
@@ -122,9 +155,24 @@ const VideoToSrt = () => {
     setError(null);
 
     try {
-      // Save video to IndexedDB
-      await saveVideo(file);
-      setVideoUrl(URL.createObjectURL(file));
+      // Try to save video to IndexedDB (only if database is healthy)
+      if (dbHealthy && !useFallback) {
+        try {
+          await saveVideo(file);
+          setVideoUrl(URL.createObjectURL(file));
+        } catch (dbError) {
+          console.warn("Failed to save video to IndexedDB:", dbError.message);
+          setUseFallback(true);
+          setDbHealthy(false);
+          
+          // Show warning but continue with video processing
+          setError(`Video won't be saved for next session: ${dbError.message}`);
+          setVideoUrl(URL.createObjectURL(file));
+        }
+      } else {
+        // Just create the video URL without saving
+        setVideoUrl(URL.createObjectURL(file));
+      }
 
       const formData = new FormData();
       formData.append("video", file);
@@ -146,8 +194,22 @@ const VideoToSrt = () => {
       const parsedSrt = parseSrtContent(data.srtContent);
       setSrtData(parsedSrt);
 
-      // Save SRT data to IndexedDB
-      await saveSrtData(parsedSrt);
+      // Save SRT data (use fallback if needed)
+      try {
+        if (useFallback) {
+          await fallbackStorage.saveSrtData(parsedSrt);
+        } else {
+          await saveSrtData(parsedSrt);
+        }
+      } catch (saveError) {
+        console.warn("Failed to save SRT data:", saveError.message);
+        // Don't block the process, just warn
+        if (error) {
+          setError(`${error} Also, subtitle data won't be saved: ${saveError.message}`);
+        } else {
+          setError(`Subtitle data won't be saved for next session: ${saveError.message}`);
+        }
+      }
     } catch (error) {
       console.error("Upload failed:", error);
       setError(error.message);
@@ -169,9 +231,13 @@ const VideoToSrt = () => {
     newData[index].text = value;
     setSrtData(newData);
 
-    // Save updated SRT data to IndexedDB
+    // Save updated SRT data (use fallback if needed)
     try {
-      await saveSrtData(newData);
+      if (useFallback) {
+        await fallbackStorage.saveSrtData(newData);
+      } else {
+        await saveSrtData(newData);
+      }
     } catch (error) {
       console.error("Error saving SRT data:", error);
     }
@@ -179,15 +245,22 @@ const VideoToSrt = () => {
 
   const handleClearData = async () => {
     try {
-      await clearData();
+      if (useFallback) {
+        await fallbackStorage.clearData();
+      } else {
+        await clearData();
+      }
+      
       if (videoUrl) {
         URL.revokeObjectURL(videoUrl);
       }
       setVideoUrl(null);
       setSrtData([]);
       setIsEditing(false);
+      setError(null);
     } catch (error) {
       console.error("Error clearing data:", error);
+      setError(`Failed to clear data: ${error.message}`);
     }
   };
 
@@ -253,6 +326,25 @@ const VideoToSrt = () => {
             downloading the SRT file. Perfect for creating accurate subtitles
             for your videos in Sinhala language.
           </Typography>
+        )}
+
+        {!dbHealthy && (
+          <Box
+            sx={{
+              mb: 2,
+              p: 2,
+              borderRadius: 1,
+              backgroundColor: theme.palette.warning.light,
+              color: theme.palette.warning.contrastText,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 1,
+            }}
+          >
+            <Typography variant="body2">
+              ⚠️ Limited storage mode: Videos won't be saved for next session, but subtitle editing will still work.
+            </Typography>
+          </Box>
         )}
 
         <Box marginY={4}>

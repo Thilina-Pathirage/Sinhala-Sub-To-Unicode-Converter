@@ -13,6 +13,7 @@ import {
   Drawer,
   List,
   ListItem,
+  ListItemButton,
   ListItemText,
   Box,
   Menu,
@@ -86,7 +87,7 @@ function App() {
           },
         },
       },
-      MuiListItem: {
+      MuiListItemButton: {
         styleOverrides: {
           root: {
             borderRadius: '8px',
@@ -152,7 +153,7 @@ function App() {
           },
         },
       },
-      MuiListItem: {
+      MuiListItemButton: {
         styleOverrides: {
           root: {
             borderRadius: '8px',
@@ -194,18 +195,18 @@ function App() {
     <Box sx={{ width: 250 }}>
       <List>
         {menuItems.map((item) => (
-          <ListItem 
-            button 
-            key={item.path}
-            selected={location.pathname === item.path}
-            onClick={() => handleMenuItemClick(item.path)}
-          >
-            <ListItemText 
-              primary={item.label} 
-              sx={{
-                color: location.pathname === item.path ? 'primary.main' : 'text.primary',
-              }}
-            />
+          <ListItem key={item.path} disablePadding>
+            <ListItemButton
+              selected={location.pathname === item.path}
+              onClick={() => handleMenuItemClick(item.path)}
+            >
+              <ListItemText 
+                primary={item.label} 
+                sx={{
+                  color: location.pathname === item.path ? 'primary.main' : 'text.primary',
+                }}
+              />
+            </ListItemButton>
           </ListItem>
         ))}
       </List>
