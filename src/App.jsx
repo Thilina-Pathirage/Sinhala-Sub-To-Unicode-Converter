@@ -25,6 +25,7 @@ import { Brightness4, Brightness7, Menu as MenuIcon } from "@mui/icons-material"
 import { Routes, Route, Link, useLocation, useNavigate } from "react-router-dom";
 import HomePage from "./pages/HomePage";
 import VideoToSrt from "./pages/VideoToSrt";
+import VideoToSrtNew from "./pages/VideoToSrtNew";
 
 function App() {
   const [darkMode, setDarkMode] = useState(true);
@@ -184,6 +185,7 @@ function App() {
   const menuItems = [
     { label: "Unicode Converter (SRT)", path: "/" },
     { label: "Video to SRT", path: "/video-to-srt" },
+    { label: "Video to SRT (New)", path: "/video-to-srt-new" },
   ];
 
   const handleMenuItemClick = (path) => {
@@ -299,6 +301,7 @@ function App() {
       <Routes>
         <Route path="/" element={<HomePage />} />
         <Route path="/video-to-srt" element={<VideoToSrt />} />
+        <Route path="/video-to-srt-new" element={<VideoToSrtNew />} />
       </Routes>
     </ThemeProvider>
   );
